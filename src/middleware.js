@@ -69,7 +69,7 @@ function handlePromise(dispatch, getState, action) {
   };
 
   const failure = error => {
-    if (error && error.isCanceled) {
+    if (cancelable && error && error.isCanceled) {
       return cancel();
     }
 

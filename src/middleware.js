@@ -1,4 +1,5 @@
 import uuid from 'uuid';
+import makeCancelable from './makeCancelable';
 import { KEY, LIFECYCLE } from './constants';
 
 function isPromise(obj) {
@@ -18,7 +19,7 @@ function handleEventHook(meta, hook, ...args) {
 }
 
 function handlePromise(dispatch, getState, action) {
-  const { promise, type, payload, meta } = action;
+  const { cancelable, promise, type, payload, meta } = action;
 
   // it is sometimes useful to be able to track the actions and associated promise lifecycle with a
   // sort of unique identifier. This is that.
@@ -52,7 +53,26 @@ function handlePromise(dispatch, getState, action) {
     return { payload: data };
   };
 
+  const cancel = () => {
+    dispatch({
+      type,
+      payload: null,
+      meta: {
+        ...meta,
+        startPayload,
+        [KEY.LIFECYCLE]: LIFECYCLE.CANCEL,
+        [KEY.TRANSACTION]: transactionId,
+      },
+    });
+    handleEventHook(meta, 'onCancel', false, getState);
+    handleEventHook(meta, 'onFinish', false, getState);
+  };
+
   const failure = error => {
+    if (error && error.isCanceled) {
+      return cancel();
+    }
+
     dispatch({
       type,
       payload: error,
@@ -68,6 +88,14 @@ function handlePromise(dispatch, getState, action) {
     handleEventHook(meta, 'onFinish', false, getState);
     return { error: true, payload: error };
   };
+
+  if (cancelable) {
+    const cancelablePromise = makeCancelable(promise);
+    return {
+      promise: cancelablePromise.promise().then(success, failure),
+      cancel: cancelablePromise.cancel,
+    };
+  }
 
   // return the promise. In this case, when users dispatch an action with a promise
   // payload, they can `.then` it, since it will return a promise.

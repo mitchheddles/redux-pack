@@ -1,5 +1,5 @@
 import uuid from 'uuid';
-import makeCancelable from './makeCancelable';
+import makeTrashable from 'trashable';
 import { KEY, LIFECYCLE } from './constants';
 
 function isPromise(obj) {
@@ -69,10 +69,6 @@ function handlePromise(dispatch, getState, action) {
   };
 
   const failure = error => {
-    if (cancelable && error && error.isCanceled) {
-      return cancel();
-    }
-
     dispatch({
       type,
       payload: error,
@@ -90,10 +86,16 @@ function handlePromise(dispatch, getState, action) {
   };
 
   if (cancelable) {
-    const cancelablePromise = makeCancelable(promise);
+    let cancelablePromise = makeTrashable(promise);
     return {
-      promise: cancelablePromise.promise().then(success, failure),
-      cancel: cancelablePromise.cancel,
+      promise: cancelablePromise.then(success, failure),
+      cancel() {
+        cancelablePromise.trash();
+        // Dereference
+        cancelablePromise = null;
+        // Call the redux-pack cancel event
+        cancel();
+      },
     };
   }
 

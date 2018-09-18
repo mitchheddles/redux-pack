@@ -90,9 +90,12 @@ function handlePromise(dispatch, getState, action) {
     return {
       promise: cancelablePromise.then(success, failure),
       cancel() {
-        cancelablePromise.trash();
-        // Dereference
-        cancelablePromise = null;
+        if (cancelablePromise) {
+          // Trash/cancel the promise
+          cancelablePromise.trash();
+          // Dereference
+          cancelablePromise = null;
+        }
         // Call the redux-pack cancel event
         cancel();
       },
